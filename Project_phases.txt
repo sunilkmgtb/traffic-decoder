@@ -1,0 +1,114 @@
+Based on the architecture and requirements outlined in your sources, here is a breakdown of the project into a High-Level Design Document followed by step-by-step developer execution instructions.
+
+### **Part 1: High-Level Design Document (HLD)**
+
+**Project Name:** Modular PCAP Decoder
+**Goal:** A web-based application to analyze PCAP files, extract 5-tuple network data (Source/Dest IP, Ports, Protocol), and decode specific Application Layer protocols (starting with Modbus TCP) using a plugin architecture.
+
+**System Components:**
+1.  **Frontend (UI):** Built with **Streamlit**. It handles file uploads (`.pcap`) and displays parsed data in tables or charts. It was selected because it handles file uploads easily with minimal code.
+2.  **Backend (Engine):** Built with Python and **Scapy**. It ingests the PCAP file, handles packet manipulation, and orchestrates the decoding process.
+3.  **Modular Plugin System:** A specific directory (`protocols/`) containing individual scripts (e.g., `modbus_tcp.py`). The engine dynamically loads these to parse specific application layer data, allowing for future expansion (e.g., BACNet) without rewriting the core engine.
+4.  **Infrastructure & Deployment:**
+    *   **Containerization:** The app is packaged in a **Docker** container to ensure it runs identically on the development MacBook and the destination Kali Linux machine.
+    *   **CI/CD Pipeline:** **GitHub Actions** handles linting, testing, building the Docker image, and pushing it to the GitHub Container Registry (GHCR).
+    *   **Deployment Agent:** A **GitHub Self-Hosted Runner** installed on the Kali Linux PC pulls the new image and restarts the container automatically upon a successful build.
+
+---
+
+### **Part 2: Developer Execution Steps**
+
+These steps are designed for you to perform on your MacBook to set up the environment and begin coding.
+
+#### **Phase 1: Environment Setup (MacBook)**
+
+1.  **Install Development Tools:**
+    *   Ensure **VS Code** is installed.
+    *   Install the recommended VS Code Extensions: **Python**, **Docker**, and **GitHub Actions**.
+    *   Install **Docker Desktop** for Mac (required to build and test containers locally).
+
+2.  **Initialize the Repository:**
+    *   Create a new directory: `mkdir traffic-decoder`
+    *   Initialize Git: `cd traffic-decoder && git init`
+    *   Create a `.gitignore` file (add `venv/`, `__pycache__/`, and `*.pcap`).
+
+3.  **Set up Virtual Environment:**
+    *   Run `python -m venv venv` to create a clean environment.
+    *   Activate it: `source venv/bin/activate`.
+
+#### **Phase 2: Project Skeleton & Dependencies**
+
+4.  **Create the Directory Structure:**
+    Replicate the structure defined in the design:
+    ```text
+    /traffic-decoder
+    ├── app.py              # Web Interface (Streamlit)
+    ├── engine.py           # Core Scapy logic
+    ├── protocols/          # Plugin directory
+    │   ├── __init__.py
+    │   └── modbus_tcp.py   # Modbus decoder
+    ├── Dockerfile          # Container config
+    ├── requirements.txt    # Dependencies
+    └── .github/workflows/  # CI/CD
+    ```
+
+5.  **Define Dependencies (`requirements.txt`):**
+    Add the core libraries mentioned in the architecture:
+    ```text
+    streamlit
+    scapy
+    pandas
+    flake8
+    pytest
+    ```
+    *Run `pip install -r requirements.txt` to install them.*
+
+#### **Phase 3: Core Implementation (The "MVP")**
+
+6.  **Develop the Protocol Plugin (`protocols/modbus_tcp.py`):**
+    *   Write a class or function that accepts a packet.
+    *   Use Scapy logic to identify if the packet is Modbus (usually TCP port 502).
+    *   Extract relevant fields (Unit ID, Function Code) and return them as a dictionary.
+
+7.  **Develop the Engine (`engine.py`):**
+    *   Import Scapy (`rdpcap`).
+    *   Write a function to read the uploaded PCAP file.
+    *   Iterate through packets to extract the "5-tuple" (Source IP, Dest IP, Protocol, Src Port, Dst Port).
+    *   Add logic to check if a packet matches a protocol in the `protocols/` folder and call that plugin.
+
+8.  **Develop the Frontend (`app.py`):**
+    *   Import `streamlit`.
+    *   Create a file uploader widget.
+    *   Add validation to ensure only `.pcap` or `.pcapng` files are accepted.
+    *   Pass the uploaded file to `engine.py` and display the returned data (e.g., in a `st.dataframe`).
+
+#### **Phase 4: Containerization & Security**
+
+9.  **Write the `Dockerfile`:**
+    *   Base image: `python:3.9-slim`.
+    *   Copy `requirements.txt` and install dependencies.
+    *   Copy the application code.
+    *   **Security Step:** Create a non-root user and switch to it before running the application to adhere to security best practices.
+    *   Command: `CMD ["streamlit", "run", "app.py"]`.
+
+10. **Local Test:**
+    *   Build: `docker build -t traffic-decoder .`
+    *   Run: `docker run -p 8501:8501 traffic-decoder`
+    *   Access `http://localhost:8501` to verify it works locally.
+
+#### **Phase 5: CI/CD Pipeline Setup (GitHub Actions)**
+
+11. **Create the Workflow File:**
+    *   Create `.github/workflows/deploy.yml`.
+    *   **Step A (Lint & Test):** Configure it to run `flake8` and `pytest` on every push.
+    *   **Step B (Build & Push):** Configure it to build the Docker image and push it to **GitHub Container Registry (GHCR)** if tests pass.
+
+12. **Configure Kali Linux (The Destination):**
+    *   Install Docker on the Kali machine.
+    *   Go to your GitHub repository settings -> Actions -> Runners -> New self-hosted runner.
+    *   Run the provided installation commands on the Kali machine.
+    *   This allows GitHub to "reach into" the Kali machine to execute the final deployment command.
+
+13. **Final Deploy Script:**
+    *   Add the final step in your `deploy.yml` to execute on the `self-hosted` runner:
+        `docker pull ghcr.io/your-username/traffic-decoder:latest && docker run -d -p 8501:8501 ghcr.io/your-username/traffic-decoder:latest`.
