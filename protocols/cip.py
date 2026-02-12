@@ -5,7 +5,7 @@ class CIPDecoder:
         self.protocol_name = "CIP (EtherNet/IP)"
         self.standard_port = 44818  # Default port for CIP over TCP
 
-    def decode(self, packet):
+    def parse_protocol(self, packet):
         """
         Extracts basic CIP/EtherNet/IP fields if the packet matches.
         """
